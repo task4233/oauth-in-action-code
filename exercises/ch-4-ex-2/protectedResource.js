@@ -22,7 +22,7 @@ var resource = {
 	"description": "This data has been protected by OAuth 2.0"
 };
 
-var getAccessToken = function(req, res, next) {
+var getAccessToken = function (req, res, next) {
 	var inToken = null;
 	var auth = req.headers['authorization'];
 	if (auth && auth.toLowerCase().indexOf('bearer') == 0) {
@@ -32,24 +32,24 @@ var getAccessToken = function(req, res, next) {
 	} else if (req.query && req.query.access_token) {
 		inToken = req.query.access_token
 	}
-	
+
 	console.log('Incoming token: %s', inToken);
-	nosql.one().make(function(builder) {
-	  builder.where('access_token', inToken);
-	  builder.callback(function(err, token) {
-	    if (token) {
-	      console.log("We found a matching token: %s", inToken);
-	    } else {
-	      console.log('No matching token was found.');
-	    };
-	    req.access_token = token;
-	    next();
-	    return;
-	  });
+	nosql.one().make(function (builder) {
+		builder.where('access_token', inToken);
+		builder.callback(function (err, token) {
+			if (token) {
+				console.log("We found a matching token: %s", inToken);
+			} else {
+				console.log('No matching token was found.');
+			};
+			req.access_token = token;
+			next();
+			return;
+		});
 	});
 };
 
-var requireAccessToken = function(req, res, next) {
+var requireAccessToken = function (req, res, next) {
 	if (req.access_token) {
 		next();
 	} else {
@@ -59,35 +59,53 @@ var requireAccessToken = function(req, res, next) {
 
 var savedWords = [];
 
-app.get('/words', getAccessToken, requireAccessToken, function(req, res) {
+app.get('/words', getAccessToken, requireAccessToken, function (req, res) {
 	/*
 	 * Make this function require the "read" scope
 	 */
-	res.json({words: savedWords.join(' '), timestamp: Date.now()});
+	if (__.contains(req.access_token.scope, 'read')) {
+		res.json({ words: savedWords.join(' '), timestamp: Date.now() });
+		return;
+	}
+
+	res.set('WWW-Authenticate', 'Bearer realm=localhost:9002, error="insufficient_scope", scope="read"');
+	res.status(403).end();
 });
 
-app.post('/words', getAccessToken, requireAccessToken, function(req, res) {
+app.post('/words', getAccessToken, requireAccessToken, function (req, res) {
 	/*
 	 * Make this function require the "write" scope
 	 */
-	if (req.body.word) {
-		savedWords.push(req.body.word);
+	if (__.contains(req.access_token.scope, 'write')) {
+		if (req.body.word) {
+			savedWords.push(req.body.word);
+		}
+		res.status(201).end();
+		return;
 	}
-	res.status(201).end();
+
+	res.set('WWW-Authenticate', 'Bearer realm=localhost:9002, error="insufficient_scope", scope="write"');
+	res.status(403).end();
 });
 
-app.delete('/words', getAccessToken, requireAccessToken, function(req, res) {
+app.delete('/words', getAccessToken, requireAccessToken, function (req, res) {
 	/*
 	 * Make this function require the "delete" scope
 	 */
-	savedWords.pop();
-	res.status(204).end();
+	if (__.contains(req.access_token.scope, 'delete')) {
+		savedWords.pop();
+		res.status(204).end();
+		return;
+	}
+
+	res.set('WWW-Authenticate', 'Bearer realm=localhost:9002, error="insufficient_scope", scope="read"');
+	res.status(403).end();
 });
 
 var server = app.listen(9002, 'localhost', function () {
-  var host = server.address().address;
-  var port = server.address().port;
+	var host = server.address().address;
+	var port = server.address().port;
 
-  console.log('OAuth Resource Server is listening at http://%s:%s', host, port);
+	console.log('OAuth Resource Server is listening at http://%s:%s', host, port);
 });
- 
+

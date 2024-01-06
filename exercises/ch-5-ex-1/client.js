@@ -120,6 +120,7 @@ app.get("/callback", function(req, res){
 
 		res.render('index', {access_token: access_token, refresh_token: refresh_token, scope: scope});
 	} else {
+		console.log(tokRes.getBody());
 		res.render('error', {error: 'Unable to fetch access token, server response: ' + tokRes.statusCode})
 	}
 });

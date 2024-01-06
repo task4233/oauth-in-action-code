@@ -48,10 +48,12 @@ app.get('/authorize', function (req, res) {
 	/*
 	 * Send the user to the authorization server
 	 */
+	state = randomstring.generate();
 	const authorizeUrl = buildUrl(authServer.authorizationEndpoint, {
 		response_type: 'code',
 		client_id: client.client_id,
-		redirect_uri: client.redirect_uris[0]
+		redirect_uri: client.redirect_uris[0],
+		state: state
 	});
 
 	res.redirect(authorizeUrl);
@@ -82,7 +84,8 @@ app.get('/callback', function (req, res) {
 		}
 	);
 	const body = JSON.parse(tokenRes.getBody());
-	res.render('index', { access_token: body.access_token, scope: body.scope});
+	access_token = body.access_token;
+	res.render('index', { access_token: body.access_token, scope: body.scope });
 });
 
 app.get('/fetch_resource', function (req, res) {
@@ -90,7 +93,23 @@ app.get('/fetch_resource', function (req, res) {
 	/*
 	 * Use the access token to call the resource server
 	 */
+	if (!access_token) {
+		res.render('error', { error: 'Missing access token.' });
+		return;
+	}
 
+	const headers = {
+		'Authorization': `Bearer ${access_token}`
+	};
+	const resource = request('POST', protectedResource, { headers: headers });
+
+	if (resource.statusCode >= 200 && resource.statusCode < 300) {
+		const body = JSON.parse(resource.getBody());
+		res.render('data', { resource: body });
+		return;
+	}
+	res.render('error', { error: `Server returned response code: ${resource.statusCode}` });
+	return;
 });
 
 var buildUrl = function (base, options, hash) {
@@ -99,7 +118,6 @@ var buildUrl = function (base, options, hash) {
 	if (!newUrl.query) {
 		newUrl.query = {};
 	}
-	// 
 	__.each(options, function (value, key, list) {
 		newUrl.query[key] = value;
 	});

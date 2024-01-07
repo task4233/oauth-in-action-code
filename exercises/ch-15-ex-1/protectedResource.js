@@ -41,7 +41,54 @@ var getAccessToken = function(req, res, next) {
 	/*
 	 * Implement PoP signature validation and token lookup using introspection
 	 */
+	const auth = req.headers['authorization'];
+	let inToken = null;
+	if (auth && auth.toLowerCase().indexOf('pop') == 0) {
+		inToken = auth.slice('pop '.length);
+	} else if (req.body && req.body.pop_access_token) {
+		inToken = req.body.pop_access_token;
+	} else if (req.query && req.query.pop_access_token) {
+		inToken = req.query.pop_access_token
+	}
 
+	const tokenParts = inToken.split('.');
+	const header = JSON.parse(base64url.decode(tokenParts[0]));
+	const payload = JSON.parse(base64url.decode(tokenParts[1]));
+
+	const at = payload.at;
+	const form_data = qs.stringify({token: at});
+	const headers = {
+		'Content-Type': 'application/x-www-form-urlencoded',
+		'Authorization': `Basic ${encodeClientCredentials(protectedResource.resource_id, protectedResource.resource_secret)}`
+	};
+	const tokenRes = request('POST', authServer.introspectionEndpoint, {
+		body: form_data,
+		headers: headers
+	});
+	if (tokenRes.statusCode >= 200 && tokenRes.statusCode < 300) {
+		const body = JSON.parse(tokenRes.getBody());
+		const active = body.active;
+		if (active) {
+			const pubKey = jose.KEYUTIL.getKey(body.access_token_key);
+			if (jose.jws.JWS.verify(inToken, pubKey, [header.alg])) {
+				if (!payload.m || payload.m == req.method) {
+					if (!payload.u || payload.u == 'localhost:9002') {
+						if (!payload.p || payload.p == req.path) {							
+							req.access_token = { 
+								access_token: at,
+								scope: body.scope
+							};
+							
+						}
+					}
+				}
+				
+			}
+		}
+	}
+
+	next();
+	return;
 };
 
 var requireAccessToken = function(req, res, next) {

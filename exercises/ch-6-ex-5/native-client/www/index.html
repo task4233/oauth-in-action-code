@@ -145,8 +145,8 @@
           }).done(function(data) {
             $('.oauth-access-token').text(data.access_token);
             callbackData.access_token = data.access_token;
-          }).fail(function() {
-            $('.oauth-protected-resource').text('Error while getting the access token');
+          }).fail(function(_, _, e) {
+            $('.oauth-protected-resource').text('Error' + e.message);
           });
 
         }

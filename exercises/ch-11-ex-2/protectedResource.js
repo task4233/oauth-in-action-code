@@ -23,8 +23,8 @@ var resource = {
 };
 
 var protectedResources = {
-		"resource_id": "protected-resource-1",
-		"resource_secret": "protected-resource-secret-1"
+	"resource_id": "protected-resource-1",
+	"resource_secret": "protected-resource-secret-1"
 };
 
 var authServer = {
@@ -35,7 +35,7 @@ var authServer = {
 var sharedTokenSecret = 'shared OAuth token secret!';
 
 
-var getAccessToken = function(req, res, next) {
+var getAccessToken = function (req, res, next) {
 	// check the auth header first
 	var auth = req.headers['authorization'];
 	var inToken = null;
@@ -47,9 +47,9 @@ var getAccessToken = function(req, res, next) {
 	} else if (req.query && req.query.access_token) {
 		inToken = req.query.access_token
 	}
-	
+
 	console.log('Incoming token: %s', inToken);
-	
+
 	var tokenParts = inToken.split('.');
 	var header = JSON.parse(base64url.decode(tokenParts[0]));
 	var payload = JSON.parse(base64url.decode(tokenParts[1]));
@@ -58,36 +58,42 @@ var getAccessToken = function(req, res, next) {
 	/*
 	 * Validate the signature of the JWT
 	 */
+	if (jose.jws.JWS.verify(
+		inToken,
+		Buffer.from(sharedTokenSecret).toString('hex'),
+		[header.alg]
+	)) {
 
-	if (payload.iss == 'http://localhost:9001/') {
-		console.log('issuer OK');
-		if ((Array.isArray(payload.aud) && __.contains(payload.aud, 'http://localhost:9002/')) || 
-			payload.aud == 'http://localhost:9002/') {
-			console.log('Audience OK');
-			
-			var now = Math.floor(Date.now() / 1000);
-			
-			if (payload.iat <= now) {
-				console.log('issued-at OK');
-				if (payload.exp >= now) {
-					console.log('expiration OK');
-					
-					console.log('Token valid!');
-	
-					req.access_token = payload;
-					
+		if (payload.iss == 'http://localhost:9001/') {
+			console.log('issuer OK');
+			if ((Array.isArray(payload.aud) && __.contains(payload.aud, 'http://localhost:9002/')) ||
+				payload.aud == 'http://localhost:9002/') {
+				console.log('Audience OK');
+
+				var now = Math.floor(Date.now() / 1000);
+
+				if (payload.iat <= now) {
+					console.log('issued-at OK');
+					if (payload.exp >= now) {
+						console.log('expiration OK');
+
+						console.log('Token valid!');
+
+						req.access_token = payload;
+
+					}
 				}
 			}
+
 		}
-		
+
 	}
-			
 	next();
 	return;
-	
+
 };
 
-var requireAccessToken = function(req, res, next) {
+var requireAccessToken = function (req, res, next) {
 	if (req.access_token) {
 		next();
 	} else {
@@ -100,20 +106,20 @@ var savedWords = [];
 
 app.options('/resource', cors());
 
-app.post("/resource", cors(), getAccessToken, function(req, res){
+app.post("/resource", cors(), getAccessToken, function (req, res) {
 
 	if (req.access_token) {
 		res.json(resource);
 	} else {
 		res.status(401).end();
 	}
-	
+
 });
 
 var server = app.listen(9002, 'localhost', function () {
-  var host = server.address().address;
-  var port = server.address().port;
+	var host = server.address().address;
+	var port = server.address().port;
 
-  console.log('OAuth Resource Server is listening at http://%s:%s', host, port);
+	console.log('OAuth Resource Server is listening at http://%s:%s', host, port);
 });
- 
+

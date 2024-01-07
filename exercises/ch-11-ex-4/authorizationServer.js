@@ -53,7 +53,7 @@ var userInfo = {
 		"email": "alice.wonderland@example.com",
 		"email_verified": true
 	},
-	
+
 	"bob": {
 		"sub": "1ZT5-OE63-57383B",
 		"preferred_username": "bob",
@@ -68,44 +68,44 @@ var userInfo = {
 		"name": "Carol",
 		"email": "carol.lewis@example.net",
 		"email_verified": true,
-		"username" : "clewis"
- 	}	
+		"username": "clewis"
+	}
 };
 
 var codes = {};
 
 var requests = {};
 
-var getClient = function(clientId) {
-	return __.find(clients, function(client) { return client.client_id == clientId; });
+var getClient = function (clientId) {
+	return __.find(clients, function (client) { return client.client_id == clientId; });
 };
 
-var getProtectedResource = function(resourceId) {
-	return __.find(protectedResources, function(protectedResource) { return protectedResource.resource_id == resourceId; });
+var getProtectedResource = function (resourceId) {
+	return __.find(protectedResources, function (protectedResource) { return protectedResource.resource_id == resourceId; });
 };
 
-var getUser = function(username) {
+var getUser = function (username) {
 	return userInfo[username];
 };
 
-app.get('/', function(req, res) {
-	res.render('index', {clients: clients, authServer: authServer});
+app.get('/', function (req, res) {
+	res.render('index', { clients: clients, authServer: authServer });
 });
 
-app.get("/authorize", function(req, res){
-	
+app.get("/authorize", function (req, res) {
+
 	var client = getClient(req.query.client_id);
-	
+
 	if (!client) {
 		console.log('Unknown client %s', req.query.client_id);
-		res.render('error', {error: 'Unknown client'});
+		res.render('error', { error: 'Unknown client' });
 		return;
 	} else if (!__.contains(client.redirect_uris, req.query.redirect_uri)) {
 		console.log('Mismatched redirect URI, expected %s got %s', client.redirect_uris, req.query.redirect_uri);
-		res.render('error', {error: 'Invalid redirect URI'});
+		res.render('error', { error: 'Invalid redirect URI' });
 		return;
 	} else {
-		
+
 		var rscope = req.query.scope ? req.query.scope.split(' ') : undefined;
 		var cscope = client.scope ? client.scope.split(' ') : undefined;
 		if (__.difference(rscope, cscope).length > 0) {
@@ -115,18 +115,18 @@ app.get("/authorize", function(req, res){
 			res.redirect(urlParsed);
 			return;
 		}
-		
+
 		var reqid = randomstring.generate(8);
-		
+
 		requests[reqid] = req.query;
-		
-		res.render('approve', {client: client, reqid: reqid, scope: rscope});
+
+		res.render('approve', { client: client, reqid: reqid, scope: rscope });
 		return;
 	}
 
 });
 
-app.post('/approve', function(req, res) {
+app.post('/approve', function (req, res) {
 
 	var reqid = req.body.reqid;
 	var query = requests[reqid];
@@ -134,10 +134,10 @@ app.post('/approve', function(req, res) {
 
 	if (!query) {
 		// there was no matching saved request, this is an error
-		res.render('error', {error: 'No matching authorization request'});
+		res.render('error', { error: 'No matching authorization request' });
 		return;
 	}
-	
+
 	if (req.body.approve) {
 		if (query.response_type == 'code') {
 			// user approved access
@@ -154,13 +154,13 @@ app.post('/approve', function(req, res) {
 			}
 
 			var code = randomstring.generate(8);
-			
+
 			var user = getUser(req.body.user);
-			
+
 			// save the code and request for later
-			
+
 			codes[code] = { request: query, scope: rscope, user: user };
-		
+
 			var urlParsed = buildUrl(query.redirect_uri, {
 				code: code,
 				state: query.state
@@ -183,11 +183,11 @@ app.post('/approve', function(req, res) {
 		res.redirect(urlParsed);
 		return;
 	}
-	
+
 });
 
-app.post("/token", function(req, res){
-	
+app.post("/token", function (req, res) {
+
 	var auth = req.headers['authorization'];
 	if (auth) {
 		// check the auth header
@@ -195,37 +195,37 @@ app.post("/token", function(req, res){
 		var clientId = clientCredentials.id;
 		var clientSecret = clientCredentials.secret;
 	}
-	
+
 	// otherwise, check the post body
 	if (req.body.client_id) {
 		if (clientId) {
 			// if we've already seen the client's credentials in the authorization header, this is an error
 			console.log('Client attempted to authenticate with multiple methods');
-			res.status(401).json({error: 'invalid_client'});
+			res.status(401).json({ error: 'invalid_client' });
 			return;
 		}
-		
+
 		var clientId = req.body.client_id;
 		var clientSecret = req.body.client_secret;
 	}
-	
+
 	var client = getClient(clientId);
 	if (!client) {
 		console.log('Unknown client %s', clientId);
-		res.status(401).json({error: 'invalid_client'});
+		res.status(401).json({ error: 'invalid_client' });
 		return;
 	}
-	
+
 	if (client.client_secret != clientSecret) {
 		console.log('Mismatched client secret, expected %s got %s', client.client_secret, clientSecret);
-		res.status(401).json({error: 'invalid_client'});
+		res.status(401).json({ error: 'invalid_client' });
 		return;
 	}
-	
+
 	if (req.body.grant_type == 'authorization_code') {
-		
+
 		var code = codes[req.body.code];
-		
+
 		if (code) {
 			delete codes[req.body.code]; // burn our code, it's been used
 			if (code.request.client_id == clientId) {
@@ -236,85 +236,127 @@ app.post("/token", function(req, res){
 
 				console.log('Issuing access token %s', access_token);
 
-				var token_response = { access_token: access_token, token_type: 'Bearer',  scope: code.scope.join(' ') };
+				var token_response = { access_token: access_token, token_type: 'Bearer', scope: code.scope.join(' ') };
 
 				res.status(200).json(token_response);
 				console.log('Issued tokens for code %s', req.body.code);
-				
+
 				return;
 			} else {
 				console.log('Client mismatch, expected %s got %s', code.request.client_id, clientId);
-				res.status(400).json({error: 'invalid_grant'});
+				res.status(400).json({ error: 'invalid_grant' });
 				return;
 			}
 		} else {
 			console.log('Unknown code, %s', req.body.code);
-			res.status(400).json({error: 'invalid_grant'});
+			res.status(400).json({ error: 'invalid_grant' });
 			return;
 		}
 	} else if (req.body.grant_type == 'refresh_token') {
-	nosql.one().make(function(builder) {
-	  builder.where('refresh_token', req.body.refresh_token);
-	  builder.callback(function(err, token) {
-	    if (token) {
-				console.log("We found a matching refresh token: %s", req.body.refresh_token);
-				if (token.client_id != clientId) {
-					nosql.remove().make(function(builder) { builder.where('refresh_token', req.body.refresh_token); });
-					res.status(400).json({error: 'invalid_grant'});
+		nosql.one().make(function (builder) {
+			builder.where('refresh_token', req.body.refresh_token);
+			builder.callback(function (err, token) {
+				if (token) {
+					console.log("We found a matching refresh token: %s", req.body.refresh_token);
+					if (token.client_id != clientId) {
+						nosql.remove().make(function (builder) { builder.where('refresh_token', req.body.refresh_token); });
+						res.status(400).json({ error: 'invalid_grant' });
+						return;
+					}
+					var access_token = randomstring.generate();
+					nosql.insert({ access_token: access_token, client_id: clientId });
+					var token_response = { access_token: access_token, token_type: 'Bearer', refresh_token: token.refresh_token };
+					res.status(200).json(token_response);
 					return;
-				}
-				var access_token = randomstring.generate();
-				nosql.insert({ access_token: access_token, client_id: clientId });
-				var token_response = { access_token: access_token, token_type: 'Bearer',  refresh_token: token.refresh_token };
-				res.status(200).json(token_response);
-				return;
-	    } else {
-				console.log('No matching token was found.');
-				res.status(400).json({error: 'invalid_grant'});
-				return;
-	    };
-	  })
-	});
+				} else {
+					console.log('No matching token was found.');
+					res.status(400).json({ error: 'invalid_grant' });
+					return;
+				};
+			})
+		});
 	} else {
 		console.log('Unknown grant type %s', req.body.grant_type);
-		res.status(400).json({error: 'unsupported_grant_type'});
+		res.status(400).json({ error: 'unsupported_grant_type' });
 	}
 });
 
-app.post('/introspect', function(req, res) {
+app.post('/introspect', function (req, res) {
 
 	/*
 	 * Implement the introspection endpoint
 	 */
 
+	const auth = req.headers['authorization'];
+	const resourceCredentials = decodeClientCredentials(auth);
+	if (!resourceCredentials) {
+		res.status(401).json({error: 'invalid_resource0'})
+		return;
+	}
+	const resourceId = resourceCredentials.id;
+	const resourceSecret = resourceCredentials.secret;
+
+	const resource = getProtectedResource(resourceId);
+	if (!resource) {
+		res.status(401).json({error: 'invalid_resource1'});
+		return;
+	}
+	if (resource.resource_secret != resourceSecret) {
+		res.status(401).json({error: 'invalid_resource2'});
+		return;
+	}
+
+	const inToken = req.body.token;
+	console.log('Introspecting token %s', inToken);
+	nosql.one().make((builder) => {
+		builder.where('access_token', inToken);
+		builder.callback((err, token) => {
+			if (token) {
+				const introspectionResponse = {
+					active: true,
+					iss: 'http://localhost:9001/',
+					aud: 'http://localhost:9002/',
+					sub: token.user ? token.user.sub : undefined,
+					username: token.user ? token.user.username : undefined,
+					scope: token.scope ? token.scope.join(' ') : undefined,
+					client_id: token.client_id
+				};
+				res.status(200).json(introspectionResponse);
+				return;
+			}
+			const introspectionResponse = { active: false };
+			res.status(200).json(introspectionResponse);
+			return;
+		})
+	});
 });
 
-var buildUrl = function(base, options, hash) {
+var buildUrl = function (base, options, hash) {
 	var newUrl = url.parse(base, true);
 	delete newUrl.search;
 	if (!newUrl.query) {
 		newUrl.query = {};
 	}
-	__.each(options, function(value, key, list) {
+	__.each(options, function (value, key, list) {
 		newUrl.query[key] = value;
 	});
 	if (hash) {
 		newUrl.hash = hash;
 	}
-	
+
 	return url.format(newUrl);
 };
 
-var decodeClientCredentials = function(auth) {
+var decodeClientCredentials = function (auth) {
 	var clientCredentials = Buffer.from(auth.slice('basic '.length), 'base64').toString().split(':');
 	var clientId = querystring.unescape(clientCredentials[0]);
-	var clientSecret = querystring.unescape(clientCredentials[1]);	
+	var clientSecret = querystring.unescape(clientCredentials[1]);
 	return { id: clientId, secret: clientSecret };
 };
 
-var getScopesFromForm = function(body) {
-	return __.filter(__.keys(body), function(s) { return __.string.startsWith(s, 'scope_'); })
-				.map(function(s) { return s.slice('scope_'.length); });
+var getScopesFromForm = function (body) {
+	return __.filter(__.keys(body), function (s) { return __.string.startsWith(s, 'scope_'); })
+		.map(function (s) { return s.slice('scope_'.length); });
 };
 
 app.use('/', express.static('files/authorizationServer'));
@@ -323,9 +365,9 @@ app.use('/', express.static('files/authorizationServer'));
 nosql.clear();
 
 var server = app.listen(9001, 'localhost', function () {
-  var host = server.address().address;
-  var port = server.address().port;
+	var host = server.address().address;
+	var port = server.address().port;
 
-  console.log('OAuth Authorization Server is listening at http://%s:%s', host, port);
+	console.log('OAuth Authorization Server is listening at http://%s:%s', host, port);
 });
- 
+
